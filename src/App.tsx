@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Login } from './pages/Login';
 import { Home } from './pages/Home';
 import { WhatIs } from './pages/WhatIs';
@@ -17,17 +18,21 @@ export function App() {
       setIsLoggedIn(true);
     }
   };
-  return <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={isLoggedIn ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />} />
-        <Route element={<Layout isLoggedIn={isLoggedIn} />}>
-          <Route path="/" element={isLoggedIn ? <Home /> : <Navigate to="/login" />} />
-          <Route path="/what-is-altflicks" element={<WhatIs />} />
-          <Route path="/discord" element={<Discord />} />
-          <Route path="/pricing" element={<Pricing />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/profile" element={isLoggedIn ? <Profile /> : <Navigate to="/login" />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>;
+  return (
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={isLoggedIn ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />} />
+          <Route element={<Layout isLoggedIn={isLoggedIn} />}>
+            <Route path="/" element={isLoggedIn ? <Home /> : <Navigate to="/login" />} />
+            <Route path="/what-is-altflicks" element={<WhatIs />} />
+            <Route path="/discord" element={<Discord />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/profile" element={isLoggedIn ? <Profile /> : <Navigate to="/login" />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
+  );
 }

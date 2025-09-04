@@ -1,13 +1,19 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { FilmIcon, MenuIcon, XIcon, UserIcon } from 'lucide-react';
-export const Navigation = ({
+import { NavigationProps } from '../types';
+
+export const Navigation: React.FC<NavigationProps> = ({
   isLoggedIn
-}: {
-  isLoggedIn: boolean;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      setIsOpen(false);
+    }
+  };
   const navItems = [{
     path: '/',
     label: 'Home',
@@ -51,13 +57,25 @@ export const Navigation = ({
           </div>
           {/* Mobile Navigation Toggle */}
           <div className="md:hidden">
-            <button onClick={() => setIsOpen(!isOpen)} className="text-gray-300 hover:text-white">
+            <button 
+              onClick={() => setIsOpen(!isOpen)} 
+              className="text-gray-300 hover:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800 rounded-md p-1"
+              aria-expanded={isOpen}
+              aria-controls="mobile-menu"
+              aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            >
               {isOpen ? <XIcon size={24} /> : <MenuIcon size={24} />}
             </button>
           </div>
         </div>
         {/* Mobile Navigation Menu */}
-        {isOpen && <div className="md:hidden py-4 border-t border-gray-700">
+        {isOpen && <div 
+          id="mobile-menu" 
+          className="md:hidden py-4 border-t border-gray-700" 
+          role="menu"
+          onKeyDown={handleKeyDown}
+          tabIndex={-1}
+        >
             {filteredItems.map(item => <Link key={item.path} to={item.path} onClick={() => setIsOpen(false)} className={`block py-2 text-base font-medium ${location.pathname === item.path ? 'text-purple-400' : 'text-gray-300'}`}>
                 {item.label}
               </Link>)}

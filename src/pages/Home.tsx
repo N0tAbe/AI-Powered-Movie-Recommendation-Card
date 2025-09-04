@@ -1,10 +1,14 @@
-import React, { useState, memo } from 'react';
+import React, { useState, memo, useCallback } from 'react';
 import { Header } from '../components/Header';
 import { RecommendationForm } from '../components/RecommendationForm';
 import { RecommendationDisplay } from '../components/RecommendationDisplay';
-export const Home = () => {
-  const [recommendation, setRecommendation] = useState(null);
-  const [formData, setFormData] = useState({
+import { FormData, Recommendation } from '../types';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { searchMovie, searchTVShow, getMovieDetails, getTVShowDetails, getPosterUrl, getFallbackPoster, formatMovieDuration, formatTVShowDuration } from '../utils/moviePoster';
+
+export const Home: React.FC = () => {
+  const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
+  const [formData, setFormData] = useState<FormData>({
     mood: '',
     genre: '',
     duration: '',
@@ -14,26 +18,146 @@ export const Home = () => {
     type: 'movie' // Default to movie
   });
   const [isLoading, setIsLoading] = useState(false);
-  const handleFormSubmit = data => {
+
+  const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+  const handleFormSubmit = useCallback(async (data: FormData) => {
     setFormData(data);
-    generateMockRecommendation(data);
-  };
-  const generateMockRecommendation = data => {
+    await generateRecommendation(data);
+  }, []);
+
+  const generateRecommendation = useCallback(async (data: FormData, isAnotherRequest = false) => {
     setIsLoading(true);
-    setTimeout(() => {
-      const mockRecommendation = {
-        title: data.genre === 'Sci-Fi' ? data.type === 'tv' ? 'Severance' : 'Arrival' : data.genre === 'Comedy' ? data.type === 'tv' ? 'What We Do in the Shadows' : 'Palm Springs' : data.genre === 'Drama' ? data.type === 'tv' ? 'Succession' : 'Sound of Metal' : data.type === 'tv' ? 'Dark' : 'Everything Everywhere All at Once',
-        hook: data.genre === 'Sci-Fi' ? data.type === 'tv' ? "A corporate workplace that surgically divides employees' memories between work and personal life." : "A linguist's encounter with aliens becomes a profound journey through time and love." : data.genre === 'Comedy' ? data.type === 'tv' ? 'Vampire roommates struggle with the mundane challenges of modern life.' : 'Time loops have never been this fun—or existential.' : data.genre === 'Drama' ? data.type === 'tv' ? "A media dynasty's power struggle reveals the darkest sides of wealth and ambition." : "A drummer's identity crumbles as he loses his hearing." : data.type === 'tv' ? 'A missing child sets four families on a hunt for answers as they unearth a mind-bending mystery.' : "A laundromat owner discovers she's the key to saving the multiverse.",
-        description: data.genre === 'Sci-Fi' ? data.type === 'tv' ? 'Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives. When a mysterious colleague appears outside of work, it begins a journey to discover the truth about their jobs.' : 'When mysterious spacecraft touch down across the globe, an elite team is brought together to investigate. As mankind teeters on the verge of global war, linguist Louise Banks races against time to decipher their intent.' : data.genre === 'Comedy' ? data.type === 'tv' ? "A documentary-style look into the daily lives of four vampires who've been roommates for hundreds of years. They struggle with paying rent, keeping up with the chore wheel, trying to get into nightclubs, and overcoming their thirst for human blood." : 'Two strangers meet at a Palm Springs wedding only to get stuck in a time loop. As they experience the same day repeatedly, they find meaning and connection in an otherwise meaningless existence.' : data.genre === 'Drama' ? data.type === 'tv' ? 'The Roy family controls one of the biggest media and entertainment conglomerates in the world. The drama series tracks their lives as they contemplate what the future will hold for them once their aging father begins to step back from the company.' : "A heavy-metal drummer's life is thrown into freefall when he begins to lose his hearing, forcing him to confront his identity and what makes life worth living." : data.type === 'tv' ? 'When two children go missing in a small German town, its sinful past is exposed along with the double lives and fractured relationships that exist among four families as they search for the kids.' : 'An exhausted middle-aged woman finds herself suddenly able to access parallel universes, gaining abilities and connections she never imagined possible.',
-        whyItFits: `This ${data.hiddenGemPreference === 'Hidden gem' ? 'underappreciated treasure' : 'acclaimed favorite'} perfectly matches your ${data.mood} mood and desire for a ${data.vibe} experience. ${data.type === 'tv' ? `With episodes around ${data.genre === 'Comedy' ? '30' : '50'} minutes each, you can watch at your own pace.` : `At ${data.genre === 'Comedy' ? '90' : data.genre === 'Sci-Fi' ? '116' : '120'} minutes, it fits within your ${data.duration} minute timeframe.`}`,
-        platforms: data.platforms.includes('Netflix') ? 'Netflix' : data.platforms.includes('Hulu') ? 'Hulu' : data.platforms.includes('Amazon') ? 'Amazon Prime Video' : data.platforms.includes('Apple') ? 'Apple TV+' : 'Disney+',
-        tagline: data.mood === 'Thoughtful' ? "The existential crisis you'll actually enjoy having." : data.mood === 'Happy' ? 'Your dopamine receptors just sent us a thank-you note.' : data.mood === 'Sad' ? 'Go ahead, embrace the beautiful melancholy.' : 'The mind-bending journey your brain has been waiting for.'
-      };
-      setRecommendation(mockRecommendation);
+    try {
+      const varietyInstruction = isAnotherRequest 
+        ? `IMPORTANT: This is a request for a DIFFERENT recommendation. Suggest a completely different ${data.type === 'tv' ? 'TV show' : 'movie'} that still matches the criteria but is NOT the same as what was previously recommended. Think of alternative options, different subgenres, or lesser-known titles that would also fit perfectly. Consider different time periods, countries, or unique approaches to the ${data.genre} genre.`
+        : "";
+
+      const prompt = `
+You are a movie and TV recommendation assistant. 
+${varietyInstruction}
+Suggest one ${data.type === 'tv' ? 'TV show' : 'movie'} that matches the following criteria:
+
+- Mood: ${data.mood}
+- Genre: ${data.genre}
+- Duration available: ${data.duration} minutes
+- Vibe/Style: ${data.vibe}
+- Streaming platforms: ${data.platforms}
+- Preference: ${data.hiddenGemPreference} (Hidden gem or mainstream)
+
+IMPORTANT: You must respond with ONLY valid JSON. Do not include any text before or after the JSON. The JSON must have exactly these keys:
+
+{
+  "title": "Movie/Show Title",
+  "hook": "One sentence hook that grabs attention",
+  "description": "Brief plot description (2-3 sentences)",
+  "whyItFits": "Explanation of why this matches their criteria",
+  "platforms": "Where to watch it",
+  "tagline": "Fun, catchy tagline"
+}
+
+Respond with ONLY the JSON object:`;
+
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+
+      // Clean the response text to extract JSON
+      let cleanedText = text.trim();
+      
+      // Remove any markdown code blocks if present
+      cleanedText = cleanedText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      
+      // Try to find JSON object in the response
+      const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleanedText = jsonMatch[0];
+      }
+
+      // Parse Gemini's JSON response safely
+      let parsed: Recommendation;
+      try {
+        parsed = JSON.parse(cleanedText);
+        
+        // Validate that all required fields are present
+        if (!parsed.title || !parsed.hook || !parsed.description || !parsed.whyItFits || !parsed.platforms || !parsed.tagline) {
+          throw new Error('Missing required fields');
+        }
+      } catch (err) {
+        console.error('JSON parsing error:', err);
+        console.error('Raw response:', text);
+        console.error('Cleaned text:', cleanedText);
+        
+        parsed = { 
+          title: "Unknown", 
+          hook: "AI had trouble formatting the response.",
+          description: `Raw AI response: ${text.substring(0, 200)}...`, 
+          whyItFits: "AI had trouble formatting JSON.", 
+          platforms: data.platforms, 
+          tagline: "AI hiccup 🤖" 
+        };
+      }
+
+      // Fetch poster and duration for the recommendation
+      const { posterUrl, duration } = await fetchPosterAndDuration(parsed.title, data.type);
+      parsed.posterUrl = posterUrl;
+      parsed.duration = duration;
+      
+      setRecommendation(parsed);
+    } catch (error) {
+      console.error("Error generating recommendation:", error);
+      setRecommendation({
+        title: "Oops!",
+        hook: "Something went wrong generating your recommendation.",
+        description: "We encountered an error while trying to get your personalized recommendation.",
+        whyItFits: "Try again in a moment.",
+        platforms: "",
+        tagline: "AI hiccup 🤖"
+      });
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
+  }, [model]);
+
+  const fetchPosterAndDuration = async (title: string, type: 'movie' | 'tv'): Promise<{posterUrl: string, duration: string}> => {
+    try {
+      let searchResult;
+      if (type === 'movie') {
+        searchResult = await searchMovie(title);
+      } else {
+        searchResult = await searchTVShow(title);
+      }
+
+      if (searchResult) {
+        const posterUrl = searchResult.poster_path ? getPosterUrl(searchResult.poster_path) : getFallbackPoster(title, type);
+        
+        // Get detailed information for duration
+        let duration = 'Duration unknown';
+        if (type === 'movie' && searchResult.id) {
+          const movieDetails = await getMovieDetails(searchResult.id);
+          if (movieDetails && movieDetails.runtime) {
+            duration = formatMovieDuration(movieDetails.runtime);
+          }
+        } else if (type === 'tv' && searchResult.id) {
+          const tvDetails = await getTVShowDetails(searchResult.id);
+          if (tvDetails && tvDetails.number_of_seasons) {
+            duration = formatTVShowDuration(tvDetails.number_of_seasons, tvDetails.number_of_episodes);
+          }
+        }
+        
+        return { posterUrl, duration };
+      }
+    } catch (error) {
+      console.error('Error fetching poster and duration:', error);
+    }
+    
+    // Return fallback if no data found
+    return {
+      posterUrl: getFallbackPoster(title, type),
+      duration: 'Duration unknown'
+    };
   };
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     setRecommendation(null);
     setFormData({
       mood: '',
@@ -44,10 +168,11 @@ export const Home = () => {
       hiddenGemPreference: '',
       type: 'movie'
     });
-  };
-  const handleGetAnother = () => {
-    generateMockRecommendation(formData);
-  };
+  }, []);
+
+  const handleGetAnother = useCallback(async () => {
+    await generateRecommendation(formData, true);
+  }, [formData, generateRecommendation]);
   return <>
       <Header />
       {!recommendation ? <RecommendationForm onSubmit={handleFormSubmit} /> : <RecommendationDisplay recommendation={recommendation} formData={formData} onReset={handleReset} onGetAnother={handleGetAnother} isLoading={isLoading} />}

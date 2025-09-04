@@ -1,10 +1,10 @@
 import React from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import { Navigation } from './Navigation';
-export const Layout = ({
+import { LayoutProps } from '../types';
+
+export const Layout: React.FC<LayoutProps> = ({
   isLoggedIn
-}: {
-  isLoggedIn: boolean;
 }) => {
   return <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
       <Navigation isLoggedIn={isLoggedIn} />

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { FilmIcon } from 'lucide-react';
-export const Login = ({
+import { LoginProps } from '../types';
+
+export const Login: React.FC<LoginProps> = ({
   onLogin
-}: {
-  onLogin: (email: string, password: string) => void;
 }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

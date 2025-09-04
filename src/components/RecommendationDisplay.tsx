@@ -1,6 +1,8 @@
 import React from 'react';
 import { ThumbsUpIcon, RefreshCwIcon, Loader2Icon, FilmIcon, MonitorIcon } from 'lucide-react';
-export const RecommendationDisplay = ({
+import { RecommendationDisplayProps } from '../types';
+
+export const RecommendationDisplay: React.FC<RecommendationDisplayProps> = ({
   recommendation,
   formData,
   onReset,
@@ -8,7 +10,7 @@ export const RecommendationDisplay = ({
   isLoading
 }) => {
   if (!recommendation) return null;
-  return <div className="max-w-2xl mx-auto">
+  return <div className="max-w-4xl mx-auto">
       <div className="bg-gray-800 rounded-lg overflow-hidden shadow-lg border border-gray-700">
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
@@ -35,15 +37,42 @@ export const RecommendationDisplay = ({
               </button>
             </div>
           </div>
-          <h2 className="text-2xl font-bold mb-2">{recommendation.title}</h2>
-          <div className="flex items-center gap-2 mb-3">
-            {formData.type === 'movie' ? <div className="flex items-center gap-1 text-sm text-gray-300">
-                <FilmIcon size={14} />
-                <span>Movie</span>
-              </div> : <div className="flex items-center gap-1 text-sm text-gray-300">
-                <MonitorIcon size={14} />
-                <span>TV Series</span>
-              </div>}
+          
+          {/* Poster and Title Section */}
+          <div className="flex flex-col md:flex-row gap-6 mb-6">
+            {/* Poster */}
+            {recommendation.posterUrl && (
+              <div className="flex-shrink-0">
+                <img 
+                  src={recommendation.posterUrl} 
+                  alt={`${recommendation.title} poster`}
+                  className="w-48 h-72 object-cover rounded-lg shadow-lg mx-auto md:mx-0"
+                  onError={(e) => {
+                    // Hide image if it fails to load
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
+            
+            {/* Title and Info */}
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold mb-2">{recommendation.title}</h2>
+              <div className="flex items-center gap-4 mb-3">
+                {formData.type === 'movie' ? <div className="flex items-center gap-1 text-sm text-gray-300">
+                    <FilmIcon size={14} />
+                    <span>Movie</span>
+                  </div> : <div className="flex items-center gap-1 text-sm text-gray-300">
+                    <MonitorIcon size={14} />
+                    <span>TV Series</span>
+                  </div>}
+                {recommendation.duration && (
+                  <div className="text-sm text-purple-300 font-medium">
+                    {recommendation.duration}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
           <p className="text-purple-300 italic mb-4">"{recommendation.hook}"</p>
           <div className="mb-6">
